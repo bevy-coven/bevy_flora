@@ -98,7 +98,7 @@ The ranges are one table in `src/limits.rs`, each documented there, chosen from 
 gallery's extreme scenarios (`extreme_*`: `twist` 720, `root_flare_spread` 1.5, `flare` 3, `height` 40, `density` 8,
 `collar_length` 6, `up_attraction` -1, `height_segments` 32) with at least a factor of ten of room, and from what each
 field does at its end: a fraction of a height is 0 to 1 (`branches.start` of `-1` is wood under the ground), a count
-has a top (`recursion` 8, `sub_branch_count` 32, `radial_segments` 64, `smooth_iterations` 32), an exponent has no
+has a top (`recursion` 8, `sub_branch_count` 32, `radial_segments` 64, `smooth_iterations` 16), an exponent has no
 zero or negative end (`taper_curve` 0 to 16: `t^-1` is infinite at the base), a length has a ceiling (`height`
 500 m, a redwood is 115). `MAX_NODES = 10 000` (the gallery's largest tree has 852 nodes, 12 times under) and
 `MAX_LEAVES = 100 000` (the heaviest preset, the willow with its strands, has 4 630 leaves: measured with
