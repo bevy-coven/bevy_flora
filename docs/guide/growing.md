@@ -32,6 +32,12 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 Pools are built from a value (`build_pool(assets.get(&handle).unwrap(), ..)`), so a pool does not follow later edits to the asset.
 
+### A file can say anything: `TreeParams::sanitized`
+
+A `.tree.ron` is typed by a person, and an editor's number field passes through every value on the way to the one meant: `-`, `1e`, `1e6`, `NaN`. Every numeric field of `TreeParams` has a range, and the tree is built from the parameters held inside it: `TreeParams::sanitized()` reads a `NaN` as the field's default and any other value outside its range as the nearest end (a trunk `height` of `1e9` is 500 m, `branches.start` of `-1` is 0, `radial_segments` of `u32::MAX` is 64). The ranges are wide, at least ten times what the presets and the gallery's extreme scenarios use, so a preset is never touched and `sanitized()` borrows it as it is. `build_tree`, `build_lods`, `generate_skeleton` and `skeleton_mesh` do it for you, and `FloraPlugin` writes the result back into a `ProceduralTree` that is added or changed (and reads a `TreeAge` of `NaN` as 0), so the component shows the tree that is drawn; an editor that wants the value in force asks `params.sanitized()`.
+
+What the ranges allow can still multiply to more wood or leaves than any tree has, so a tree has at most `MAX_NODES` (5 000) branches and `MAX_LEAVES` (20 000) leaves: generation stops adding wood at the first and drops the last nodes to fit the second. The 20 presets have at most 588 nodes and 4 630 leaves. The worst tree the ranges allow, a 500 m trunk with 5 000 branches or one with 20 000 leaves, builds in about a second and about 300 MB on an Apple M5, where unbounded parameters hung the build or ran the machine out of memory.
+
 ## Growing many trees: `GpuGrowth`
 
 A growing tree normally rebuilds both meshes every frame, 0.1 to 0.4 ms of CPU per tree. Add `GpuGrowth` and the tree is built once, at maturity, and grown in the vertex shader: each frame the plugin ages the skeleton and writes a few kilobytes of per-node state, and nothing else is uploaded.
