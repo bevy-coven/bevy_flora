@@ -26,7 +26,12 @@ pub struct TreeMeshes {
 
 /// Build the tree described by `params` as it looks at `age`
 /// (`f32::INFINITY` for the mature tree).
+///
+/// Any `params` and any `age` give a tree: the parameters are [`TreeParams::sanitized`] (`NaN`s read as
+/// their defaults, everything held in its range), the tree has at most [`MAX_NODES`](crate::MAX_NODES)
+/// branches and [`MAX_LEAVES`](crate::MAX_LEAVES) leaves, and an age of `NaN` is 0.
 pub fn build_tree(params: &TreeParams, age: f32) -> TreeMeshes {
+    let params = &*params.sanitized();
     build_aged(&generate_skeleton(params), params, age)
 }
 
