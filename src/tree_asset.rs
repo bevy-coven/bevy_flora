@@ -73,16 +73,18 @@ pub(crate) fn sync_tree_assets(
         if !source.is_changed() && !changed.contains(&source.0.id()) {
             continue;
         }
-        let Some(params) = assets.get(&source.0) else { continue };
+        // The tree is the asset's as the generator can draw it: a hostile `.tree.ron` is clamped here, so
+        // an unrelated reload still finds the component equal to it.
+        let Some(params) = assets.get(&source.0).map(TreeParams::sanitized) else { continue };
         match tree {
             // Equal parameters change nothing, so an unrelated reload rebuilds nothing.
             Some(mut tree) => {
                 if tree.0 != *params {
-                    tree.0 = params.clone();
+                    tree.0 = params.into_owned();
                 }
             }
             None => {
-                commands.entity(entity).insert(ProceduralTree(params.clone()));
+                commands.entity(entity).insert(ProceduralTree(params.into_owned()));
             }
         }
     }

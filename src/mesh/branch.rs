@@ -440,8 +440,9 @@ fn base_span(node_index: usize, node: &Node, collar: bool, first: usize, end: us
 }
 
 /// Wood mesh for the whole (aged) skeleton: trunk, collars and branch tubes,
-/// optionally smoothed.
+/// optionally smoothed. `params` is [`TreeParams::sanitized`] first.
 pub fn skeleton_mesh(skeleton: &Skeleton, params: &TreeParams) -> MeshData {
+    let params = &*params.sanitized();
     skeleton_mesh_with(skeleton, params, trunk_pieces(&params.trunk, &skeleton.nodes[0]), None)
 }
 
