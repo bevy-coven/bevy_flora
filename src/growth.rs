@@ -93,8 +93,9 @@ impl Skeleton {
     /// axis at their attachment distance. Indices are remapped; `child_count`
     /// keeps the full-grown count, so terminal-branch leaves never move.
     /// The trunk is always kept (with `progress = 0` at `age <= 0`);
-    /// `age = f32::INFINITY` returns a copy with every progress at 1.
+    /// `age = f32::INFINITY` returns a copy with every progress at 1; an age of `NaN` is 0.
     pub fn aged(&self, age: f32, growth: &GrowthParams) -> Skeleton {
+        let age = if age.is_nan() { 0.0 } else { age };
         let mut nodes: Vec<Node> = Vec::with_capacity(self.nodes.len());
         // Old index -> new index for kept nodes.
         let mut remap: Vec<Option<u32>> = vec![None; self.nodes.len()];
