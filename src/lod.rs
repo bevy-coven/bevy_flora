@@ -135,8 +135,11 @@ pub struct TreeLod(pub LodSettings);
 ///
 /// The leaves of the coarse levels are chosen from the full tree's leaves, so
 /// thin wood that is dropped does not take its foliage with it. The
-/// [`TreeMeshes::skeleton`] of a coarse level is the skeleton it was meshed from.
+/// [`TreeMeshes::skeleton`] of a coarse level is the skeleton it was meshed from. As
+/// for [`build_tree`](crate::build_tree), any `params` and `age` give a tree
+/// ([`TreeParams::sanitized`]).
 pub fn build_lods(params: &TreeParams, age: f32, lod: &LodSettings) -> [TreeMeshes; 3] {
+    let params = &*params.sanitized();
     let full = generate_skeleton(params);
     let fine = build_aged(&full, params, age);
     let [lod1, lod2] = coarse_levels(&fine, params, lod);

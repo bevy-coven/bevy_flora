@@ -437,6 +437,7 @@ pub mod growth;
 pub mod harvest;
 pub mod impostor;
 pub mod index;
+mod limits;
 pub mod lod;
 pub mod mesh;
 pub mod params;
@@ -472,6 +473,7 @@ pub use harvest::{FallenFruit, FallingFruit, Fruit, FruitFell, TreeFruit};
 pub use condition::{ConditionGlide, TreeCondition};
 pub use index::{FloraIndex, IndexedTree, Obstacle, ObstacleKind, TreeHit};
 pub use impostor::{IMPOSTOR_VIEWS, ImpostorAtlas, ImpostorMaterial, ImpostorTint};
+pub use limits::{MAX_LEAVES, MAX_NODES};
 pub use lod::{LodDistances, LodSettings, TreeLod, build_lods};
 pub use mesh::MeshData;
 pub use params::{
