@@ -280,6 +280,7 @@ impl bevy::app::Plugin for FloraPlugin {
                         },
                     ),
                     sync_tree_assets.run_if(resource_exists::<Assets<TreeParams>>),
+                    sanitize_trees,
                     grow_trees,
                     sync_growth_mode,
                     rebuild_trees.run_if(flora_decided),
@@ -443,6 +444,32 @@ pub(crate) fn crown_material(params: &crate::params::TreeParams) -> StandardMate
         material(params.foliage.color)
     } else {
         leaf_material(params.foliage.color)
+    }
+}
+
+/// Hold every [`ProceduralTree`] that is new or changed inside the ranges of
+/// [`TreeParams::sanitized`], and a [`TreeAge`] that is `NaN` at 0, in place, before anything reads them:
+/// the tree that is drawn is the tree the component holds, whatever a `.tree.ron` file, an editor's
+/// number field or a calculation that divided 0 by 0 put in it, and the felling, the capsules of
+/// [`TreeShape`] and the fire's fuel read the same finite values. A tree already in range is not touched
+/// (it is not marked changed).
+pub fn sanitize_trees(
+    mut trees: Query<&mut ProceduralTree, Changed<ProceduralTree>>,
+    mut ages: Query<&mut TreeAge, Changed<TreeAge>>,
+) {
+    for mut tree in &mut trees {
+        let clean = match tree.bypass_change_detection().0.sanitized() {
+            std::borrow::Cow::Owned(clean) => Some(clean),
+            std::borrow::Cow::Borrowed(_) => None,
+        };
+        if let Some(clean) = clean {
+            tree.0 = clean;
+        }
+    }
+    for mut age in &mut ages {
+        if age.0.is_nan() {
+            age.0 = 0.0;
+        }
     }
 }
 
