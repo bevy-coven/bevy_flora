@@ -80,9 +80,14 @@ pub(crate) fn node_leaf_scale(node: &Node, growth: &GrowthParams) -> f32 {
 /// [`FoliagePlacement::AllBranches`], as a real number: at least one, more on longer wood. The
 /// leaf of rank `r` has flushed `clamp(count - r, 0, 1)` (`leaf_flush_scale`), so a leaf eases in
 /// over the growth of branch that the next one takes to be born.
+///
+/// `clamp` is safe on the product because `foliage` arrives [`TreeParams::sanitized`], so `density`
+/// is finite and inside its range, and `length` and `height_mod` are derived from sanitized values;
+/// were one ever `NaN`, `clamp` would hand the `NaN` straight through rather than hiding it, and the
+/// sanitize tests are where that is caught.
 pub(crate) fn distributed_leaf_amount(foliage: &FoliageParams, length: f32, height_ratio: f32) -> f32 {
     let height_mod = height_modifier(height_ratio, foliage);
-    (foliage.density * length * height_mod).max(1.0).min(MAX_LEAVES_PER_NODE)
+    (foliage.density * length * height_mod).clamp(1.0, MAX_LEAVES_PER_NODE)
 }
 
 /// The most leaves a node of `length` metres at `height_ratio` can bear under `foliage` in any
