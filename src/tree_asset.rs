@@ -73,16 +73,18 @@ pub(crate) fn sync_tree_assets(
         if !source.is_changed() && !changed.contains(&source.0.id()) {
             continue;
         }
-        let Some(params) = assets.get(&source.0) else { continue };
+        // The tree is the asset's as the generator can draw it: a hostile `.tree.ron` is clamped here, so
+        // an unrelated reload still finds the component equal to it.
+        let Some(params) = assets.get(&source.0).map(TreeParams::sanitized) else { continue };
         match tree {
             // Equal parameters change nothing, so an unrelated reload rebuilds nothing.
             Some(mut tree) => {
                 if tree.0 != *params {
-                    tree.0 = params.clone();
+                    tree.0 = params.into_owned();
                 }
             }
             None => {
-                commands.entity(entity).insert(ProceduralTree(params.clone()));
+                commands.entity(entity).insert(ProceduralTree(params.into_owned()));
             }
         }
     }
@@ -241,6 +243,28 @@ mod tests {
         let late = app.world_mut().spawn(ProceduralTreeAsset(handle.clone())).id();
         app.update();
         assert_eq!(app.world().get::<ProceduralTree>(late), Some(&ProceduralTree(reseeded)));
+    }
+
+    #[test]
+    fn a_tree_follows_its_asset_as_the_generator_can_draw_it() {
+        let mut app = app();
+        let mut hostile = TreePreset::Oak.params();
+        hostile.trunk.height = f32::NAN;
+        hostile.branches.start = -1.0;
+        let handle = app.world_mut().resource_mut::<Assets<TreeParams>>().add(hostile.clone());
+        let tree = app.world_mut().spawn(ProceduralTreeAsset(handle.clone())).id();
+        app.update();
+        app.update();
+        // The tree holds the parameters in range; the asset (the file's own words) is as it was.
+        let held = app.world().get::<ProceduralTree>(tree).unwrap().0.clone();
+        assert_eq!(held.trunk.height, TreeParams::default().trunk.height);
+        assert_eq!(held.branches.start, 0.0);
+        assert_eq!(app.world().resource::<Assets<TreeParams>>().get(&handle).unwrap().branches.start, -1.0);
+        // A reload of the same asset leaves the component as it was.
+        app.world_mut().resource_mut::<Assets<TreeParams>>().get_mut(&handle).unwrap().branches.start = -1.0;
+        app.update();
+        app.update();
+        assert_eq!(app.world().get::<ProceduralTree>(tree).unwrap().0, held);
     }
 
     #[cfg(feature = "ron")]

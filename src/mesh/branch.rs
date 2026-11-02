@@ -440,8 +440,9 @@ fn base_span(node_index: usize, node: &Node, collar: bool, first: usize, end: us
 }
 
 /// Wood mesh for the whole (aged) skeleton: trunk, collars and branch tubes,
-/// optionally smoothed.
+/// optionally smoothed. `params` is [`TreeParams::sanitized`] first.
 pub fn skeleton_mesh(skeleton: &Skeleton, params: &TreeParams) -> MeshData {
+    let params = &*params.sanitized();
     skeleton_mesh_with(skeleton, params, trunk_pieces(&params.trunk, &skeleton.nodes[0]), None)
 }
 
@@ -650,19 +651,47 @@ fn skeleton_mesh_inner(
 /// Spheres bucketed on a coarse grid, so asking whether a point lies in any of
 /// them checks only the spheres overlapping its cell (smoothing asks for every
 /// vertex, and big trees have hundreds of pins).
+///
+/// A sphere covers as many cells as the cube of its radius, so the cell grows (by doubling) until
+/// all the spheres together cover [`PinSpheres::MAX_CELLS`]: the trees the crate draws keep the
+/// finest cell, and wide wood (a trunk 50 m across under smoothing) costs a coarser grid and a few
+/// more spheres a lookup instead of gigabytes of cells.
 struct PinSpheres<'a> {
     spheres: &'a [(Vec3, f32)],
     cells: std::collections::HashMap<[i32; 3], Vec<u32>>,
+    /// Side of a cell, in metres.
+    cell: f32,
 }
 
 impl<'a> PinSpheres<'a> {
-    const CELL: f32 = 0.25;
+    /// The finest cell, in metres.
+    const FINEST: f32 = 0.25;
+    /// Most cells all the spheres' bounding cubes may cover together.
+    const MAX_CELLS: f64 = 2_000_000.0;
 
     fn new(spheres: &'a [(Vec3, f32)]) -> Self {
+        let cells_at = |cell: f32| -> f64 {
+            spheres
+                .iter()
+                .filter(|(c, r)| r.is_finite() && c.is_finite())
+                .map(|&(_, r)| (f64::from(2.0 * r / cell) + 2.0).powi(3))
+                .sum()
+        };
+        let mut cell = Self::FINEST;
+        // An infinite radius never fits; sixty doublings is far past any finite one.
+        for _ in 0..60 {
+            if cells_at(cell).is_nan() || cells_at(cell) <= Self::MAX_CELLS {
+                break;
+            }
+            cell *= 2.0;
+        }
         let mut cells: std::collections::HashMap<[i32; 3], Vec<u32>> = std::collections::HashMap::new();
         for (i, &(center, radius)) in spheres.iter().enumerate() {
-            let lo = Self::cell(center - Vec3::splat(radius));
-            let hi = Self::cell(center + Vec3::splat(radius));
+            if !(radius.is_finite() && center.is_finite()) {
+                continue;
+            }
+            let lo = Self::cell_of(center - Vec3::splat(radius), cell);
+            let hi = Self::cell_of(center + Vec3::splat(radius), cell);
             for x in lo[0]..=hi[0] {
                 for y in lo[1]..=hi[1] {
                     for z in lo[2]..=hi[2] {
@@ -671,15 +700,15 @@ impl<'a> PinSpheres<'a> {
                 }
             }
         }
-        Self { spheres, cells }
+        Self { spheres, cells, cell }
     }
 
-    fn cell(p: Vec3) -> [i32; 3] {
-        (p / Self::CELL).floor().as_ivec3().to_array()
+    fn cell_of(p: Vec3, cell: f32) -> [i32; 3] {
+        (p / cell).floor().as_ivec3().to_array()
     }
 
     fn contains(&self, p: Vec3) -> bool {
-        self.cells.get(&Self::cell(p)).is_some_and(|list| {
+        self.cells.get(&Self::cell_of(p, self.cell)).is_some_and(|list| {
             list.iter().any(|&i| {
                 let (c, r) = self.spheres[i as usize];
                 p.distance_squared(c) <= r * r
