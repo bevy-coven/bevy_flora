@@ -366,7 +366,11 @@ pub fn trunk_depth(trunk: &TrunkParams, seed: i32, point: Vec3) -> f32 {
 /// the leaves of [`MAX_LEAVES`] (the last nodes are dropped to fit), so any parameters give a
 /// tree in bounded time and memory.
 pub fn generate_skeleton(params: &TreeParams) -> Skeleton {
-    let params = &*params.sanitized();
+    grow_skeleton(&params.sanitized())
+}
+
+/// [`generate_skeleton`] for parameters that are already [`TreeParams::sanitized`].
+pub(crate) fn grow_skeleton(params: &TreeParams) -> Skeleton {
     let mut rng = SeededRng::new(params.seed);
     let trunk = &params.trunk;
 

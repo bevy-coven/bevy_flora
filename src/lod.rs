@@ -21,7 +21,7 @@ use crate::foliage::{FoliageMeshes, LeafPoint, collect_leaf_points, crown_meshes
 use crate::mesh::branch::{Coarseness, skeleton_mesh_coarse};
 use crate::params::TreeParams;
 use crate::pipeline::{TreeMeshes, build_aged, trunk_top};
-use crate::skeleton::{Node, Skeleton, generate_skeleton};
+use crate::skeleton::{Node, Skeleton, grow_skeleton};
 
 /// How far from the camera each level of detail takes over, in metres: level 1
 /// from `lod1`, level 2 from `lod2`, the impostor from `impostor`. Each switch
@@ -140,7 +140,7 @@ pub struct TreeLod(pub LodSettings);
 /// ([`TreeParams::sanitized`]).
 pub fn build_lods(params: &TreeParams, age: f32, lod: &LodSettings) -> [TreeMeshes; 3] {
     let params = &*params.sanitized();
-    let full = generate_skeleton(params);
+    let full = grow_skeleton(params);
     let fine = build_aged(&full, params, age);
     let [lod1, lod2] = coarse_levels(&fine, params, lod);
     [fine, lod1, lod2]
