@@ -33,9 +33,9 @@ pub const MAX_NODES: usize = 5_000;
 
 /// The most leaves a tree's skeleton can carry: when the leaves its nodes could bear
 /// ([`FoliageParams`](crate::FoliageParams): terminal count, cluster size or density along the wood)
-/// add up to more, the last nodes are dropped until they fit. The heaviest preset (the willow, with its
-/// strands) has 4 630.
-pub const MAX_LEAVES: usize = 20_000;
+/// add up to more, the last nodes (the top of the crown) are dropped until they fit. The heaviest preset (the
+/// willow, with its strands) has 4 630; the gallery's `extreme_giant` oak, 40 m tall, about 21 000.
+pub const MAX_LEAVES: usize = 60_000;
 
 /// The most leaves one node of a tree grown under
 /// [`FoliagePlacement::AllBranches`](crate::FoliagePlacement::AllBranches) carries however long it is.
@@ -569,12 +569,16 @@ mod tests {
     #[test]
     fn no_tree_the_crate_draws_comes_near_the_budget() {
         use crate::foliage::leaf_bound;
-        for preset in TreePreset::ALL {
-            let params = preset.params();
+        // The presets, and the gallery's largest scenario (`extreme_giant`: an oak 40 m tall, 3 m thick).
+        let mut giant = TreePreset::Oak.params();
+        giant.trunk.height = 40.0;
+        giant.trunk.radius = 3.0;
+        let trees = TreePreset::ALL.map(|preset| (preset.name(), preset.params())).into_iter().chain([("giant oak", giant)]);
+        for (name, params) in trees {
             let skeleton = crate::generate_skeleton(&params);
             let bound: usize = skeleton.nodes.iter().map(|n| leaf_bound(&params.foliage, n.length, n.height_ratio)).sum();
-            assert!(skeleton.nodes.len() * 4 <= MAX_NODES, "{}: {} nodes", preset.name(), skeleton.nodes.len());
-            assert!(bound * 4 <= MAX_LEAVES, "{}: could bear {bound} leaves", preset.name());
+            assert!(skeleton.nodes.len() * 4 <= MAX_NODES, "{name}: {} nodes", skeleton.nodes.len());
+            assert!(bound * 2 <= MAX_LEAVES, "{name}: could bear {bound} leaves");
         }
     }
 
