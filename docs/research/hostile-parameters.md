@@ -98,16 +98,28 @@ The ranges are one table in `src/limits.rs`, each documented there, chosen from 
 gallery's extreme scenarios (`extreme_*`: `twist` 720, `root_flare_spread` 1.5, `flare` 3, `height` 40, `density` 8,
 `collar_length` 6, `up_attraction` -1, `height_segments` 32) with at least a factor of ten of room, and from what each
 field does at its end: a fraction of a height is 0 to 1 (`branches.start` of `-1` is wood under the ground), a count
-has a top (`recursion` 8, `sub_branch_count` 32, `radial_segments` 64, `smooth_iterations` 32), an exponent has no
+has a top (`recursion` 8, `sub_branch_count` 32, `radial_segments` 64, `smooth_iterations` 16), an exponent has no
 zero or negative end (`taper_curve` 0 to 16: `t^-1` is infinite at the base), a length has a ceiling (`height`
-500 m, a redwood is 115). `MAX_NODES = 10 000` (the gallery's largest tree has 852 nodes, 12 times under) and
-`MAX_LEAVES = 100 000` (the heaviest preset, the willow with its strands, has 4 630 leaves: measured with
-`collect_leaf_points` on all 20 presets at maturity, with and without splitting).
+500 m, a redwood is 115), and a count of branches *per metre* has no small top (the fern's 6 cm stem carries 300, so
+`branches.density` goes to 1000 and the nodes are what is capped). `MAX_NODES = 5 000` (the largest gallery tree has
+893 nodes, the `extreme_giant` oak; 5.6 times under) and `MAX_LEAVES = 60 000` (the heaviest preset, the willow with
+its strands, has 4 630 leaves, measured with `collect_leaf_points` on all 20 presets at maturity; the 40 m giant oak
+about 21 000, which a first budget of 20 000 cut, so the budget is nearly three times it). One branch carries at most
+1 024 leaves and 256 strands.
+
+Found while measuring the worst tree the ranges allow (every size at its top): one build used 3 GB and was still
+growing. The cause is not in the generator: `PinSpheres` in `mesh/branch.rs`, the spheres smoothing pins wood
+inside, bucketed each sphere into every 0.25 m cell of its bounding cube, so a trunk 800 m across (a 50 m radius,
+flared 16 times) took 6e7 cells a sphere. The grid now doubles its cell until all the spheres together cover two
+million cells (a preset never does: the finest cell is kept), so wide wood costs a few more spheres a lookup. With it
+the worst trees build in 1.0 s and 310 MB (5 000 branches, smoothing, 32 sides) and 0.4 s and 180 MB (leaves at the
+budget), release, Apple M5; before it the same trees took 2.0 to 6.3 s and 480 to 830 MB, and a trunk 800 m across
+under smoothing was still allocating after 12 s, at 2.9 GB.
 
 ## Validation targets
 
 - Every preset: `sanitized()` is borrowed (no field moves), and the 526 gallery scenarios' `stats.tsv` columns 1 to 10
-  are identical before and after (no tree changes).
+  and PNGs are identical before and after (no tree changes).
 - A generator test over every numeric field of `TreeParams` found by reflection (so a field added later is covered
   without anyone remembering it), at `NaN`, `inf`, `-inf`, `0`, `-1`, the type's largest value and the range's own two
   ends: `build_tree` and `build_lods` return in bounded time and give finite positions and normals and valid indices.
@@ -130,7 +142,8 @@ changes.
   public constants and one table, so an owner can move them in one place.
 - A tree over the budget is cut, not refused: the alternative (an error from `build_tree`) would change a signature
   every caller uses and leave the plugin with a tree it cannot draw. The budget is far above any tree the crate
-  draws, so a cut tree is a hostile one.
+  draws, so a cut tree is a hostile one. The cut is the end of the generator's order, which for leaves is the top of
+  the crown: a fairer cut (thinning every branch's leaves) would have to reach the placement code the GPU mirrors.
 - `NaN` age is 0, not the default `TreeAge` (infinity): a game whose growth timer divides 0 by 0 shows a seedling for
   a frame, not a full-grown tree for a frame.
 
