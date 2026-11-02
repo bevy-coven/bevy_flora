@@ -23,6 +23,16 @@ changing, the one `Growing` runs to and `TreeMature` reports; it is not `GrowthP
 trunk-attached growth reaches its target): sub-branches are born later and the last wood thickens
 `thickening_lag` times a node's duration after it is born.
 
+**Any parameters give a tree** (`limits.rs`, pure CPU). `TreeParams` comes from callers and `.tree.ron` files, so every
+stage that takes it first runs `TreeParams::sanitized()` (`generate_skeleton`, `build_tree`, `build_lods`,
+`skeleton_mesh`; `FloraPlugin` writes it back into a changed `ProceduralTree`): a `NaN` reads as the field's default and
+any other value outside its range is the nearest end, so a preset is borrowed untouched and nothing the crate draws
+moves. What fine ranges can multiply to is cut by two budgets, `MAX_NODES` (generation stops adding wood; a
+recursive branch checks it before each node) and `MAX_LEAVES` (`fit_leaves` drops the last nodes while the sum of
+`foliage::leaf_bound` over the skeleton is over it; one node bears at most `MAX_LEAVES_PER_NODE`, which the GPU's
+`leaf_count` reads too, since it is the same `distributed_leaf_amount`). `PinSpheres` (smoothing's pinned wood) coarsens
+its grid for wide wood, because a sphere covers cells as the cube of its radius.
+
 ## Growth model
 
 Progress is linear. A primary is born when the trunk reaches its attachment
