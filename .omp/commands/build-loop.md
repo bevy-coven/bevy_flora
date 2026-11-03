@@ -343,7 +343,7 @@ are proud of.
   ms/frame) per mode before and after, same machine; no regression over 5% on any mode, and no build-probe
   time over 5% slower, without a logged, justified trade. No new mesh flag, no worse GPU parity.
 - Run the full gate (the CI workflow's build job, then its GPU job):
-  1. `cargo build && cargo build --features serde && cargo build --release && cargo test --all-features`
+  1. `cargo build && cargo build --features serde && cargo build --release && cargo nextest run --all-features` then `cargo test --all-features --doc`
   2. `cargo clippy --all-targets --all-features -- -D warnings`
   3. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`
   4. `cargo build --examples && cargo build --examples --all-features`
@@ -353,6 +353,8 @@ are proud of.
      `/tmp/fN/after/cpu` and `/tmp/fN/after/gpu`; no `ERROR|panicked` in the `--gpu` log, no
      `BLANK_CAPTURE|CAPTURE_TIMEOUT` in either `stats.tsv`, and `compare_gallery /tmp/fN/after/cpu /tmp/fN/after/gpu`
      exits 0. With no display, run it under `xvfb-run -a` as CI does.
+
+Fast testing across the home cloud — the host matrix, mold, sccache and the measured numbers — is `agents/TESTING.md` in the codex_fs depot: `/mnt/codex_fs/agents/TESTING.md`, or `ssh three cat /mnt/codex_fs/agents/TESTING.md` from a host that does not mount it.
 
 ## 8. Ship
 
