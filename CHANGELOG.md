@@ -7,7 +7,7 @@ All notable changes to `bevy_flora`. The format follows
 
 ## [Unreleased]
 
-A change of `TreeCondition` can be drawn as a decline over seconds (`docs/research/condition-glide.md`), a leaf that appears on a growing branch grows from nothing instead of popping in (`docs/research/leaf-ease-in.md`), and a preset is found by its name and a tree says when it is grown, what an editor and a game each wrote for themselves (`docs/research/preset-names.md`).
+A change of `TreeCondition` can be drawn as a decline over seconds (`docs/research/condition-glide.md`), a leaf that appears on a growing branch grows from nothing instead of popping in (`docs/research/leaf-ease-in.md`), and a preset is found by its name and a tree says when it is grown, what an editor and a game each wrote for themselves (`docs/research/preset-names.md`), and a tree is built from any parameters at all, in bounded time and memory, whatever a `.tree.ron` file or an editor's number field held (`docs/research/hostile-parameters.md`).
 
 ### Added
 
@@ -45,6 +45,29 @@ A change of `TreeCondition` can be drawn as a decline over seconds (`docs/resear
   (`build_tree(&params, f32::INFINITY).mature_at`, as Sanctuary's forest did once per kind) or through
   `generate_skeleton`; this reads the skeleton and returns the same number bit for bit. `TreeAge` and
   `GrowthParams::maturity_age` (which is not that age) point at it.
+
+- **`TreeParams::sanitized`, `MAX_NODES` and `MAX_LEAVES`: a tree from any parameters**
+  (`docs/research/hostile-parameters.md`). Setting each numeric field of a preset to a hostile value, one at
+  a time (`NaN`, infinities, `-1`, `1e6`, `1e30`, `u32::MAX`), hung the build, ran it past 3 GB or gave
+  levels of detail with `NaN` positions: in the first 2 600 of 6 816 cases 164 returned non-finite meshes,
+  138 ran out of memory, 19 hung and 6 aborted the process (a 65 535-deep `branches.recursion`); an age of
+  `NaN` did it to every preset. Nothing in `TreeParams` was checked, and a `.tree.ron` with `height: 1e6` or
+  a slider passing through `-1` hangs a `BuildInBackground` task on the compute pool, where it cannot be
+  cancelled. Every numeric field now has a range (`src/limits.rs`; wide: at least ten times what the
+  presets and the gallery's extreme scenarios use), and `TreeParams::sanitized()` returns the parameters a
+  tree is built from, borrowed when they are in range (every preset) and otherwise a copy where a `NaN`
+  reads as the field's default and anything else outside its range is the nearest end (`height` `1e9` is
+  500 m, `branches.start` `-1` is 0, `radial_segments` `u32::MAX` is 64); a colour with a `NaN` channel
+  reads as its default. `build_tree`, `build_lods`, `generate_skeleton` and `skeleton_mesh` do it, so they
+  take any parameters, and `Skeleton::aged` reads an age of `NaN` as 0. A tree has at most `MAX_NODES`
+  (5 000) branches (generation stops adding wood there) and `MAX_LEAVES` (60 000) leaves (the last nodes,
+  the top of the crown, are dropped to fit); the presets have at most 588 nodes and 4 630 leaves and the
+  gallery's 40 m giant oak 893 and about 21 000, so no tree the crate draws is cut. One branch bears at most
+  1 024 leaves under `AllBranches` (the GPU's `leaf_count` reads the same function) and 256 strands.
+  `FloraPlugin` writes the sanitised parameters into a `ProceduralTree` that is added or changed and an
+  age of `NaN` as 0 (`sanitize_trees`, before the rebuild; a tree in range is not marked changed, a clamped
+  one is rebuilt once), and a tree from a `ProceduralTreeAsset` takes its asset's parameters in range while
+  the asset keeps the file's own words. Exported from the crate root: `MAX_NODES`, `MAX_LEAVES`.
 
 ### Changed
 
@@ -106,8 +129,39 @@ A change of `TreeCondition` can be drawn as a decline over seconds (`docs/resear
   reads a tree's age from `TreeParams::mature_at`; the clips are unchanged by it (the same number, built the
   same way). `tree_file --export` still takes a name in any case.
 
+- Smoothing's pin grid no longer costs memory as the cube of the wood's width: `PinSpheres` bucketed every
+  pinned sphere into each 0.25 m cell of its bounding cube, so wood 800 m across (a 50 m trunk radius flared
+  16 times, now a legal value) took 6e7 cells a sphere and a smoothed tree 3 GB and growing. The grid doubles
+  its cell until all the spheres together cover two million cells; a preset never does (it keeps the finest
+  cell), so every smoothed tree is the same mesh. The worst trees the ranges allow build in 1.0 s and 310 MB
+  (5 000 branches, smoothing, 32 sides) and 0.4 s and 180 MB (leaves at the budget), release, Apple M5; before
+  the grid they took 2.0 to 6.3 s and 480 to 830 MB.
+- Nothing a preset or the gallery draws changed: of 526 gallery scenarios all 526 images are byte for byte the
+  main binary's and `stats.tsv` columns 1 to 10 are identical, no flag appears (first attempt, with a leaf
+  budget of 20 000, cut the 40 m `extreme_giant` oak, which has about 21 000 leaves: the budget is 60 000).
+  CPU against `--gpu`, the seven CI scenarios: mean of means 0.218 of 255, worst 0.922, as before. Cost,
+  forest bench interleaved base against new, medians of three, ms a frame (cpu): 10 000 pooled oaks 9.26
+  (29.98) to 9.23 (29.78), 1 000 naive 37.99 (39.03) to 38.05 (39.12), 1 000 growing on the GPU 419.7 (539.8)
+  to 403.8 (529.1) (the machine ran about twice as slowly as in the last entries, other loops sharing it; the
+  pairs are what count). `sanitized()` costs 94 to 110 ns a call (best of 20 x 50 000, in range), so a build
+  of the smallest preset (the dead tree, 19 to 57 us) pays under 1%.
+
 ### Tests
 
+- `limits.rs`: `every_preset_and_the_default_are_inside_every_range` (and says which fields if one is not),
+  `every_numeric_field_is_limited` (all 107 numeric fields found by reflection, so a field added later is
+  covered, each at `NaN`, both infinities and `±1e30`: finite and inside any range afterwards),
+  `a_hostile_value_in_any_field_still_builds_a_sound_tree` (the same fields at six hostile values, a birch with
+  fruit, blossom and autumn, mature and young with its levels of detail: finite positions and normals, valid
+  indices, at most `MAX_NODES` nodes; 640 builds in 2.5 s; before, it hangs on the first),
+  `a_hull_and_a_prism_with_hostile_numbers_build_too`, `the_leaves_the_ranges_allow_are_cut_at_the_leaf_budget`
+  and `the_wood_the_ranges_allow_is_cut_at_the_node_budget` (every size at its top), `an_age_of_nan_is_an_age_of_zero`,
+  `no_tree_the_crate_draws_comes_near_the_budget` (the presets and the 40 m oak: at least 4 times under the
+  node budget, 2 times under the leaf budget), `a_tube_never_has_more_sides_than_the_range_says`
+  (`skeleton_mesh` with `u32::MAX` sides, rings and smoothing); `plugin.rs`:
+  `a_tree_with_hostile_parameters_is_held_in_range_and_built_once`; `tree_asset.rs`:
+  `a_tree_follows_its_asset_as_the_generator_can_draw_it`. No existing test was changed. 369 lib and 37 doc
+  tests.
 - `a_preset_is_found_by_its_name_and_by_nothing_else` (all 20 round-trip through `from_name`, `FromStr` and
   `Display`; a near miss, a different case, a padded name and the `serde` spelling are refused),
   `the_error_says_what_was_asked_for_and_what_there_is` (the input and all 20 names, usable as a

@@ -21,7 +21,7 @@ use crate::foliage::{FoliageMeshes, LeafPoint, collect_leaf_points, crown_meshes
 use crate::mesh::branch::{Coarseness, skeleton_mesh_coarse};
 use crate::params::TreeParams;
 use crate::pipeline::{TreeMeshes, build_aged, trunk_top};
-use crate::skeleton::{Node, Skeleton, generate_skeleton};
+use crate::skeleton::{Node, Skeleton, grow_skeleton};
 
 /// How far from the camera each level of detail takes over, in metres: level 1
 /// from `lod1`, level 2 from `lod2`, the impostor from `impostor`. Each switch
@@ -135,9 +135,12 @@ pub struct TreeLod(pub LodSettings);
 ///
 /// The leaves of the coarse levels are chosen from the full tree's leaves, so
 /// thin wood that is dropped does not take its foliage with it. The
-/// [`TreeMeshes::skeleton`] of a coarse level is the skeleton it was meshed from.
+/// [`TreeMeshes::skeleton`] of a coarse level is the skeleton it was meshed from. As
+/// for [`build_tree`](crate::build_tree), any `params` and `age` give a tree
+/// ([`TreeParams::sanitized`]).
 pub fn build_lods(params: &TreeParams, age: f32, lod: &LodSettings) -> [TreeMeshes; 3] {
-    let full = generate_skeleton(params);
+    let params = &*params.sanitized();
+    let full = grow_skeleton(params);
     let fine = build_aged(&full, params, age);
     let [lod1, lod2] = coarse_levels(&fine, params, lod);
     [fine, lod1, lod2]

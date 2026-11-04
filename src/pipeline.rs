@@ -4,7 +4,7 @@ use crate::foliage::{FoliageMeshes, collect_leaf_points, crown_meshes};
 use crate::mesh::MeshData;
 use crate::mesh::branch::{apply_pipe_radius, skeleton_mesh};
 use crate::params::TreeParams;
-use crate::skeleton::{Skeleton, generate_skeleton};
+use crate::skeleton::{Skeleton, grow_skeleton};
 
 /// Output of [`build_tree`].
 #[derive(Clone, Debug)]
@@ -26,11 +26,16 @@ pub struct TreeMeshes {
 
 /// Build the tree described by `params` as it looks at `age`
 /// (`f32::INFINITY` for the mature tree).
+///
+/// Any `params` and any `age` give a tree: the parameters are [`TreeParams::sanitized`] (`NaN`s read as
+/// their defaults, everything held in its range), the tree has at most [`MAX_NODES`](crate::MAX_NODES)
+/// branches and [`MAX_LEAVES`](crate::MAX_LEAVES) leaves, and an age of `NaN` is 0.
 pub fn build_tree(params: &TreeParams, age: f32) -> TreeMeshes {
-    build_aged(&generate_skeleton(params), params, age)
+    let params = &*params.sanitized();
+    build_aged(&grow_skeleton(params), params, age)
 }
 
-/// The skeleton `full` (from [`generate_skeleton`]) as it looks at `age`: the
+/// The skeleton `full` (from [`generate_skeleton`](crate::generate_skeleton)) as it looks at `age`: the
 /// aged nodes, with pipe-model radii when `params.mesh.pipe_radius_enabled`.
 pub(crate) fn aged_skeleton(full: &Skeleton, params: &TreeParams, age: f32) -> Skeleton {
     let mut skeleton = full.aged(age, &params.growth);
@@ -45,7 +50,7 @@ pub(crate) fn aged_skeleton(full: &Skeleton, params: &TreeParams, age: f32) -> S
 }
 
 /// [`build_tree`] from the full-grown skeleton `full` that
-/// [`generate_skeleton`] made from `params`, so a growing tree can reuse it
+/// [`generate_skeleton`](crate::generate_skeleton) made from `params`, so a growing tree can reuse it
 /// from frame to frame instead of regenerating it at every age.
 pub(crate) fn build_aged(full: &Skeleton, params: &TreeParams, age: f32) -> TreeMeshes {
     let mature_at = full.mature_at(&params.growth);

@@ -162,3 +162,15 @@ what it rests on; this file only says what exists. Newest additions last in each
 - Web, not indexed: Clark and Evans 1954, "Distance to Nearest Neighbor as a Measure of Spatial
   Relationships in Populations", doi `10.2307/1931034` (paywalled); the 1979 generalisation to k
   dimensions, doi `10.2307/1937660`.
+
+## Parameter limits and hostile inputs (`TreeParams::sanitized`)
+
+- `10.1111_cgf.12744`: Computer Graphics Forum, related work on Weber and Penn 1995 ("up to 80 parameters"; answers
+  `distill_search`, no catalog entry).
+- `10.1093_treephys_tpac065`: Aye, Brännström and Carlsson 2022, "Prediction of tree sapwood and heartwood profiles
+  using pipe model and branch thinning theory" (the number of tips limited by light and space, `1 <= d <= 3`).
+- `10.1111_cgf.13263`: Guo, Zhang, Li, Deussen and Yi 2017, "Tree Growth Modelling Constrained by Growth Equations"
+  (the loop count `LoS` after which a tree stops growing).
+- Web, not indexed: Rust standard library, `f32::clamp` ("returns NaN if the initial value was NaN"; panics if `min >
+  max`), <https://doc.rust-lang.org/std/primitive.f32.html#method.clamp>. SpeedTree Modeler's branch Clamp group, in
+  the manual page listed above.

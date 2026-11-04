@@ -23,7 +23,7 @@ jobs:
         with:
           components: clippy
 
-      # `build` before `test`, on purpose: `cargo test` compiles the
+      # `build` before `test`, on purpose: any test run (`cargo nextest run` included) compiles the
       # dev-dependency `bevy` with default features, and Cargo unifies features,
       # so a missing entry in the crate's own `bevy` feature list cannot fail
       # there. A plain `cargo build` compiles exactly what a consumer gets.
@@ -34,12 +34,13 @@ jobs:
         run: cargo build --features serde
 
       # Every test here is CPU geometry; none opens a window.
+      - uses: taiki-e/install-action@nextest
       - name: Test
-        run: cargo test --all-features
+        run: cargo nextest run --all-features --no-fail-fast
 
-      # `cargo test` already runs the doctests, README included (the README is
-      # `include_str!`d into a doctest in `src/lib.rs`); this step says so in the
-      # log, so a README example that stops compiling is visible as itself.
+      # nextest does NOT run doctests, so this step is load-bearing rather than a
+      # restatement: the README is `include_str!`d into a doctest in `src/lib.rs`,
+      # and without this the README example would stop being compiled at all.
       - name: Doc-tests
         run: cargo test --all-features --doc
 

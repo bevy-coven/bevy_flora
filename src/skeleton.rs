@@ -4,6 +4,8 @@
 use bevy::math::Vec3;
 use std::f32::consts::{E, PI, TAU};
 
+use crate::foliage::leaf_bound;
+use crate::limits::{MAX_LEAVES, MAX_NODES};
 use crate::mesh::rings::perpendicular;
 use crate::params::{BranchParams, TreeParams, TrunkParams, TrunkTermination};
 use crate::rng::SeededRng;
@@ -359,7 +361,16 @@ pub fn trunk_depth(trunk: &TrunkParams, seed: i32, point: Vec3) -> f32 {
 }
 
 /// Generate the full (mature) skeleton for `params`, including birth times.
+///
+/// `params` is [`TreeParams::sanitized`] first, and the skeleton stops at [`MAX_NODES`] nodes and at
+/// the leaves of [`MAX_LEAVES`] (the last nodes are dropped to fit), so any parameters give a
+/// tree in bounded time and memory.
 pub fn generate_skeleton(params: &TreeParams) -> Skeleton {
+    grow_skeleton(&params.sanitized())
+}
+
+/// [`generate_skeleton`] for parameters that are already [`TreeParams::sanitized`].
+pub(crate) fn grow_skeleton(params: &TreeParams) -> Skeleton {
     let mut rng = SeededRng::new(params.seed);
     let trunk = &params.trunk;
 
@@ -418,6 +429,10 @@ pub fn generate_skeleton(params: &TreeParams) -> Skeleton {
     }
 
     for primary in primaries {
+        // A primary, and the two halves of its split: all or none, so the cap holds.
+        if skeleton.nodes.len() + 3 > MAX_NODES {
+            break;
+        }
         let idx = push_node(&mut skeleton, primary);
         if let Some((child_a, child_b)) = try_split(&mut skeleton, idx, params, &mut rng) {
             let a = push_node(&mut skeleton, child_a);
@@ -440,6 +455,7 @@ pub fn generate_skeleton(params: &TreeParams) -> Skeleton {
     let floor = params.branches.floor_level + if params.mesh.pipe_radius_enabled { params.mesh.pipe_radius_min } else { 0.0 };
     skeleton.seat_on_parents(&params.branches, floor, &params.trunk, params.seed);
     hang_strands(&mut skeleton, params);
+    fit_leaves(&mut skeleton, &params.foliage);
     for node in &mut skeleton.nodes {
         node.full_length = node.length;
     }
@@ -450,6 +466,10 @@ pub fn generate_skeleton(params: &TreeParams) -> Skeleton {
 /// Separate random stream for strands, so a tree without them draws nothing and one with them keeps
 /// every other branch where it was.
 const STRAND_SALT: i32 = 0x57A4_D5E7;
+
+/// The most strands one branch hangs, whatever its length and the density: a branch that would hang more is
+/// at its limit long before the tree is at [`MAX_NODES`].
+const MAX_STRANDS_PER_BRANCH: u32 = 256;
 
 /// The shortest a strand is, as a share of the longest it could be there.
 const STRAND_SHORTEST: f32 = 0.5;
@@ -476,14 +496,20 @@ fn hang_strands(skeleton: &mut Skeleton, params: &TreeParams) {
     let floor = b.floor_level + s.clearance;
     let branches = skeleton.nodes.len();
     for i in 1..branches {
+        if skeleton.nodes.len() >= MAX_NODES {
+            break;
+        }
         let parent = skeleton.nodes[i].clone();
         if parent.kind == NodeKind::Leader || parent.length <= 0.0 {
             continue;
         }
         let mut rng = SeededRng::from_parts(params.seed ^ STRAND_SALT, parent.id);
         let expected = s.density * parent.length * (1.0 - start);
-        let count = expected.floor() as u32 + u32::from(rng.next_f32() < expected.fract());
+        let count = (expected.floor() as u32 + u32::from(rng.next_f32() < expected.fract())).min(MAX_STRANDS_PER_BRANCH);
         for _ in 0..count {
+            if skeleton.nodes.len() >= MAX_NODES {
+                break;
+            }
             let t = rng.range(start, 1.0);
             let lean = spread * rng.next_f32().sqrt();
             let around = rng.range(0.0, TAU);
@@ -519,6 +545,29 @@ fn hang_strands(skeleton: &mut Skeleton, params: &TreeParams) {
         }
     }
     if skeleton.nodes.len() > branches {
+        skeleton.recount_children();
+    }
+}
+
+/// Drop the last nodes of `skeleton` until the leaves they could bear fit [`MAX_LEAVES`]. A node is
+/// counted as if it bore leaves whether or not it is terminal (a node that loses its children becomes
+/// terminal), so the bound holds for the skeleton that is left. Nodes are in generation order, a parent
+/// before its children, so a cut leaves a tree.
+fn fit_leaves(skeleton: &mut Skeleton, foliage: &crate::params::FoliageParams) {
+    if !foliage.enabled {
+        return;
+    }
+    let mut total = 0usize;
+    let mut keep = skeleton.nodes.len();
+    for (i, node) in skeleton.nodes.iter().enumerate() {
+        total = total.saturating_add(leaf_bound(foliage, node.length, node.height_ratio));
+        if total > MAX_LEAVES {
+            keep = i.max(1);
+            break;
+        }
+    }
+    if keep < skeleton.nodes.len() {
+        skeleton.nodes.truncate(keep);
         skeleton.recount_children();
     }
 }
@@ -569,7 +618,7 @@ fn generate_primaries(params: &TreeParams, rng: &mut SeededRng) -> Vec<Node> {
     }
 
     let spacing = 1.0 / (b.density + 0.001);
-    let branch_count = (zone_length / spacing).floor() as i32;
+    let branch_count = ((zone_length / spacing).floor() as i32).min(MAX_NODES as i32);
 
     for i in 0..branch_count {
         let base_height = start_height + spacing * i as f32;
@@ -762,6 +811,9 @@ fn generate_subs(
     }
 
     for _ in 0..b.sub_branch_count {
+        if skeleton.nodes.len() >= MAX_NODES {
+            return;
+        }
         if b.break_chance > 0.0 && rng.next_f32() < b.break_chance {
             continue;
         }

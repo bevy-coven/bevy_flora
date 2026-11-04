@@ -9,6 +9,7 @@ use crate::mesh::MeshData;
 use crate::params::{
     CrownStyle, FoliageParams, FoliagePlacement, LeafOrientation, LeafStyle, RenderStyle, TreeParams, TrunkParams,
 };
+use crate::limits::MAX_LEAVES_PER_NODE;
 use crate::rng::SeededRng;
 use crate::skeleton::{Node, NodeKind, Skeleton, trunk_depth};
 #[cfg(feature = "textures")]
@@ -76,12 +77,27 @@ pub(crate) fn node_leaf_scale(node: &Node, growth: &GrowthParams) -> f32 {
 }
 
 /// Leaves along a branch of `length` metres under
-/// [`FoliagePlacement::AllBranches`], as a real number: at least one, more on longer wood. The
+/// [`FoliagePlacement::AllBranches`], as a real number: at least one, at most
+/// [`MAX_LEAVES_PER_NODE`], more on longer wood. The
 /// leaf of rank `r` has flushed `clamp(count - r, 0, 1)` (`leaf_flush_scale`), so a leaf eases in
 /// over the growth of branch that the next one takes to be born.
+// `f32::max` and `min` read a `NaN` as the other bound (one leaf); `clamp` would keep the `NaN`.
+#[allow(clippy::manual_clamp)]
 pub(crate) fn distributed_leaf_amount(foliage: &FoliageParams, length: f32, height_ratio: f32) -> f32 {
     let height_mod = height_modifier(height_ratio, foliage);
-    (foliage.density * length * height_mod).max(1.0)
+    (foliage.density * length * height_mod).max(1.0).min(MAX_LEAVES_PER_NODE)
+}
+
+/// The most leaves a node of `length` metres at `height_ratio` can bear under `foliage` in any
+/// placement, terminal or not: what [`generate_skeleton`](crate::generate_skeleton) adds up against
+/// [`MAX_LEAVES`](crate::MAX_LEAVES) without building a mesh.
+pub(crate) fn leaf_bound(foliage: &FoliageParams, length: f32, height_ratio: f32) -> usize {
+    let height_mod = height_modifier(height_ratio, foliage);
+    match foliage.placement {
+        FoliagePlacement::AllBranches => distributed_leaf_amount(foliage, length, height_ratio) as usize,
+        FoliagePlacement::TerminalBranches => ((foliage.density * height_mod) as usize).max(1),
+        FoliagePlacement::TipClusters => ((foliage.cluster_size as f32 * height_mod) as usize).max(1),
+    }
 }
 
 /// Whole leaves along a branch of `length` metres under [`FoliagePlacement::AllBranches`]: the
