@@ -103,7 +103,7 @@ were skipped.
 **The numbers are the state.** Measure the crate the way a game pays for it:
 
 - **The gallery (visual QA):** `$CARGO_TARGET_DIR/release/examples/gallery --warmup-secs 20 --out /tmp/fN/before/gallery`
-  renders every scenario (491 at loop setup) to a 1280x960 four-view PNG (front, side, top, junction
+  renders every scenario (526 — `docs/loop-log.md:517`) to a 1280x960 four-view PNG (front, side, top, junction
   close-up) and appends `stats.tsv` (`name age seed nodes trunk_verts trunk_tris foliage_verts foliage_tris
   bbox_min bbox_max flags`). Record the scenario count, every flag other than `-`, and every
   `WARN|ERROR|panicked` line of its log (the winit `Skipped event Destroyed` line at shutdown is benign).
@@ -114,8 +114,8 @@ were skipped.
 - **GPU growth parity:** the CI job's scenarios rendered with `--gpu` and without (`--filter grow_oak_4
   --filter grow_oak_6 --filter age_spruce_6 --filter smoothyoung_spruce_4 --filter age_willow_6 --filter
   smoothyoung_oak_4 --filter pipeyoung_pine_5`), then `compare_gallery /tmp/fN/before/cpu /tmp/fN/before/gpu`.
-  Record its mean and worst difference (the README quotes 0.08 of 255 mean, 2.11 worst over the full
-  gallery).
+  Record its mean and worst difference (`CHANGELOG.md` quotes 0.08 of 255 mean, 2.11 worst over the full
+  gallery; `qa/visual_findings.md` agrees. The README does not carry these numbers).
 - **Forest cost:** `$CARGO_TARGET_DIR/release/examples/forest --offscreen --deterministic --mode <m>` for
   `pool` (10 000 trees by default), `naive --trees 1000` and `gpu-live`, each printing
   `forest <mode> <preset> <n> trees: <x> ms/frame (<fps>), p95 <y> ms, median <z> ms, min <w> ms, cpu <c> ms/frame`.
@@ -348,7 +348,7 @@ are proud of.
   ms/frame) per mode before and after, same machine; no regression over 5% on any mode, and no build-probe
   time over 5% slower, without a logged, justified trade. No new mesh flag, no worse GPU parity.
 - Run the full gate (the CI workflow's build job, then its GPU job):
-  1. `cargo build && cargo build --features serde && cargo build --release && cargo test --all-features`
+  1. `cargo build && cargo build --features serde && cargo build --release && cargo nextest run --all-features && cargo test --all-features --doc`
   2. `cargo clippy --all-targets --all-features -- -D warnings`
   3. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`
   4. `cargo build --examples && cargo build --examples --all-features`
@@ -358,6 +358,8 @@ are proud of.
      `/tmp/fN/after/cpu` and `/tmp/fN/after/gpu`; no `ERROR|panicked` in the `--gpu` log, no
      `BLANK_CAPTURE|CAPTURE_TIMEOUT` in either `stats.tsv`, and `compare_gallery /tmp/fN/after/cpu /tmp/fN/after/gpu`
      exits 0. With no display, run it under `xvfb-run -a` as CI does.
+
+Fast testing across the home cloud — the host matrix, mold, sccache and the measured numbers — is `agents/TESTING.md` in the codex_fs depot: `/mnt/codex_fs/agents/TESTING.md`, or `ssh three cat /mnt/codex_fs/agents/TESTING.md` from a host that does not mount it.
 
 ## 8. Ship
 
